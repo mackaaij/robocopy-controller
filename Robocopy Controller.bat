@@ -2,15 +2,23 @@
 cls
 SETLOCAL
 
-set scriptversion=Robocopy Controller 1.1.000
-
-set robocopy_fileset=robocopy_fileset.csv
-set rebuild-list=rebuild-list.txt
-set logfile=%temp%\%robocopy_fileset%.log.txt
+set scriptversion=Robocopy Controller 1.2.001
 set error=false
 
+rem Check if a fileset is passed as a parameter. If not quit immediatly
+if [%1]==[] echo Error: Fileset to be used not specified. & color 4f & echo Press any key to close this screen. & ENDLOCAL & PAUSE > nul & goto :eof
+
+rem Strip the quotes of the parameter
+for /f "delims=" %%i in ('echo %1') do set robocopy_fileset=%%~i
+rem Check the passed parameter for existance and then use it as the fileset to mirror
+rem If the file does not exist quit immediatly
+if NOT exist "%robocopy_fileset%" echo Error: Specified fileset does not exist: & echo (%robocopy_fileset%)  & echo Use quotes around the filename? & color 4f & echo Press any key to close this screen. & ENDLOCAL & PAUSE > nul & goto :eof
+
+rem Set name and location for the log file
+for /f "delims=" %%i in ('echo %robocopy_fileset%') do set logfile=%temp%\%%~nxi.log.txt
+
 rem Create a new logfile
-echo Start %scriptversion% > %logfile%
+echo Start %scriptversion% > "%logfile%"
 
 rem Set windowtitle of DOS box
 title %scriptversion%
@@ -18,38 +26,9 @@ title %scriptversion%
 rem Check whether Robocopy exist
 if NOT exist robocopy.exe set error=Error: Robocopy.exe missing. & goto :end
 
-rem Check whether the settings file exist
-if NOT exist "%robocopy_fileset%" set error=Error: Settings file ("%robocopy_fileset%") does not exist. & goto :end
-
-rem Pick op basetarget of fileset (if not found abort, malformed fileset)
-findstr /I "basetarget" "%robocopy_fileset%" > nul
-if NOT %errorlevel%==0 set error=Error: Settings file ("%robocopy_fileset%") does not contain a base target. & goto :end
-for /F "tokens=2 delims=;" %%i in ('findstr /I "basetarget" "%robocopy_fileset%"') do set basetarget=%%i
-echo Using base target %basetarget% of "%robocopy_fileset%" >> %logfile%
-
-rem Pick op current version of fileset (if not found abort, malformed fileset)
-findstr /I "filesetversion" "%robocopy_fileset%" > nul
-if NOT %errorlevel%==0 set error=Error: Settings file ("%robocopy_fileset%") does not contain a version number. & goto :end
-for /F "tokens=2 delims=;" %%i in ('findstr /I "filesetversion" "%robocopy_fileset%"') do set filesetversion=%%i
-echo Using fileset version %filesetversion% of "%robocopy_fileset%" >> %logfile%
-
-rem Check current filesetversion on target
-rem First check if a version file exists otherwise goto :readfileset
-if NOT exist "%basetarget%\*.filesetversion.txt" goto :readfileset
-for /F %%i in ('dir "%basetarget%\*.filesetversion.txt" /b /od') do set versionfilename=%%i
-set currentversion=%versionfilename:.filesetversion.txt=%
-
-rem Check if current version is on the rebuild-list
-rem (rebuild-listed versions require a delete of the target folder)
-findstr /I "%currentversion%" "%rebuild-list%" > nul
-if %errorlevel%==0 echo Deleting basetarget (%basetarget%) for complete rebuild. & echo. & echo Deleting basetarget (%basetarget%) for complete rebuild. >> %logfile% & echo. >> %logfile%
-
-rem TODO: Steal attrib -s -h and rmdir commands from pc1218
-
-:readfileset
 rem This sections reads the settings from %robocopy_fileset%
 rem The subroutine :robocopy is called for each line
-for /F "skip=3 tokens=1,2,3,4 delims=;" %%i in ('type "%robocopy_fileset%"') do (set sourcefolder=%%i) & (set destinationfolder=%%j) & (set excludefolders=%%k) & (set excludefiles=%%l) & call :robocopy
+for /F "skip=1 tokens=1,2,3,4 delims=;" %%i in ('type "%robocopy_fileset%"') do (set sourcefolder=%%i) & (set destinationfolder=%%j) & (set excludefolders=%%k) & (set excludefiles=%%l) & call :robocopy
 
 rem If this line in the script is reached the complete %robocopy_fileset% is done
 goto :end
@@ -65,19 +44,21 @@ if NOT exist %sourcefolder% set error=Error: Source (%sourcefolder%) does not ex
 
 rem Output read options to screen
 echo Robocopy is busy mirroring (source -^> destination)...
+if NOT exist "%destinationfolder%" echo Please note: This may take a few minutes on the first run!
 echo * %sourcefolder% -^> %destinationfolder%
 if NOT "%excludefolders%"=="" echo - Folders to exclude: %excludefolders%
 if NOT "%excludefiles%"=="" echo - File(type)s to exclude: %excludefiles%
 
 rem Output read options to log
-echo Robocopy is busy mirroring (source -^> destination)... >> %logfile%
-echo * %sourcefolder% -^> %destinationfolder% >> %logfile%
-if NOT "%excludefolders%"=="" echo - Folders to exclude: %excludefolders% >> %logfile%
-if NOT "%excludefiles%"=="" echo - File(type)s to exclude: %excludefiles% >> %logfile%
+echo Robocopy is busy mirroring (source -^> destination)... >> "%logfile%"
+echo * %sourcefolder% -^> %destinationfolder% >> "%logfile%"
+if NOT "%excludefolders%"=="" echo - Folders to exclude: %excludefolders% >> "%logfile%"
+if NOT "%excludefiles%"=="" echo - File(type)s to exclude: %excludefiles% >> "%logfile%"
 
 rem Extra parameters explained
-rem /MIR
-rem MIRror a directory tree - equivalent to /PURGE plus all subfolders (/E)
+rem /S /PURGE
+rem MIRror a directory tree but do NOT include empty subfolders
+rem /MIR would include empty subfolders and is equivalent to /E /PURGE
 rem Unfortunatly Robocopy will not delete folders which have later been configured to ignore,
 rem unless they've been removed from the network.
 rem /ZB
@@ -86,8 +67,12 @@ rem /NP
 rem No progress (since output is logged to a logfile)
 rem /LOG+
 rem Append logfile (if multiple folders are mirrored every log is contained)
-robocopy "%sourcefolder%" "%destinationfolder%" /XD %excludefolders% /XF %excludefiles% /MIR /ZB /NP /LOG+:"%logfile%"
+rem /R:0 /W:0
+rem Retry 0 times with a 0 second pause between each try if copy fails (insufficient disk space)
+rem Default was 1.000.000 retries with 30 seconds pause for EACH file.
+robocopy "%sourcefolder%" "%destinationfolder%" /XD %excludefolders% /XF %excludefiles% /S /PURGE /ZB /NP /LOG+:"%logfile%" /R:0 /W:0
 if %errorlevel%==16 set error=Error: Roboform exit code 16 (wrong "%robocopy_fileset%")? & goto :eof
+if %errorlevel%==9 set error=Error: Roboform exit code 9 (not enough diskspace on drive %destinationfolder:~0,1%)? & goto :eof
 echo.
 
 rem Exit the loop :Robocopy
@@ -101,15 +86,12 @@ if NOT "%error%"=="false" color 4f & echo. & echo Unfortunatly something(s) went
 if "%error%"=="false" color 2f & echo Everything went fine.
 
 rem Output results to log
-echo. >> %logfile%
-echo Finished Robocopy script. >> %logfile%
-if NOT "%error%"=="false" color 4f & echo.  >> %logfile% & echo Unfortunatly something(s) went wrong.  > %logfile% & echo %error%  >> %logfile% & echo.  >> %logfile% & echo If this screen output is not sufficient please check the logfile at:  >> %logfile% & echo "%logfile%" >> %logfile%
+echo. >> "%logfile%"
+echo Finished Robocopy script. >> "%logfile%"
+if NOT "%error%"=="false" color 4f & echo.  >> "%logfile%" & echo Unfortunatly something(s) went wrong.  > "%logfile%" & echo %error%  >> "%logfile%" & echo.  >> "%logfile%" & echo If this screen output is not sufficient please check the logfile at:  >> "%logfile%" & echo "%logfile%" >> "%logfile%"
 
 rem If all went file color the screen green
-if "%error%"=="false" color 2f & echo Everything went fine. >> %logfile%
-echo on
-rem Replace logfile with current version if no errors
-if "%error%"=="false" (if exist "%basetarget%\%currentversion%.filesetversion.txt" del "%basetarget%\%currentversion%.filesetversion.txt") & echo File used by Robocopy Controller to determine the fileset version. > "%basetarget%\%filesetversion%.filesetversion.txt"
+if "%error%"=="false" echo Everything went fine. >> "%logfile%"
 
 echo.
 echo Press any key to close this screen.
