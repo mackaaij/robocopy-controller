@@ -2,7 +2,10 @@
 cls
 SETLOCAL
 
-set scriptversion=Robocopy Controller 1.2.001
+set scriptversion=Robocopy Controller 1.2.002
+rem Set windowtitle of DOS box
+title %scriptversion%
+
 set error=false
 
 rem Check if a fileset is passed as a parameter. If not quit immediatly
@@ -20,40 +23,50 @@ for /f "delims=" %%i in ('echo %robocopy_fileset%') do set logfile=%temp%\%%~nxi
 rem Create a new logfile
 echo Start %scriptversion% > "%logfile%"
 
-rem Set windowtitle of DOS box
-title %scriptversion%
-
 rem Check whether Robocopy exist
 if NOT exist robocopy.exe set error=Error: Robocopy.exe missing. & goto :end
 
 rem This sections reads the settings from %robocopy_fileset%
 rem The subroutine :robocopy is called for each line
-for /F "skip=1 tokens=1,2,3,4 delims=;" %%i in ('type "%robocopy_fileset%"') do (set sourcefolder=%%i) & (set destinationfolder=%%j) & (set excludefolders=%%k) & (set excludefiles=%%l) & call :robocopy
+for /F "skip=4 tokens=1,2,3,4,5 delims=;" %%i in ('type "%robocopy_fileset%"') do (set sourcefolder=%%i) & (set destinationfolder=%%j) & (set excludefolders=%%k) & (set excludefiles=%%l) & (set filestocopy=%%m) & call :robocopy
 
 rem If this line in the script is reached the complete %robocopy_fileset% is done
 goto :end
 
 :robocopy
+rem Strip the trailing space from the variables if there is one (symbol for empty token)
+if "%excludefolders:~-1%" == " " set excludefolders=%excludefolders:~0,-1%
+if "%excludefiles:~-1%" == " " set excludefiles=%excludefiles:~0,-1%
+if "%filestocopy:~-1%" == " " set filestocopy=%filestocopy:~0,-1%
+
 rem Strip trailing backslash from source and destination directories if there is one.
 rem Otherwise Robocopy will fail...
 if "%sourcefolder:~-1%" == "\" set sourcefolder="%sourcefolder:~0,-1%"
 if "%destinationfolder:~-1%" == "\" set destinationfolder="%destinationfolder:~0,-1%"
 
 rem Check whether the sourcefolder exists
-if NOT exist %sourcefolder% set error=Error: Source (%sourcefolder%) does not exist. & goto :eof
+if NOT exist "%sourcefolder%" set error=Error: Source (%sourcefolder%) does not exist. & goto :eof
 
 rem Output read options to screen
 echo Robocopy is busy mirroring (source -^> destination)...
-if NOT exist "%destinationfolder%" echo Please note: This may take a few minutes on the first run!
+if NOT exist "%destinationfolder%" echo PLEASE NOTE: This may take a few minutes on the first run!
 echo * %sourcefolder% -^> %destinationfolder%
-if NOT "%excludefolders%"=="" echo - Folders to exclude: %excludefolders%
-if NOT "%excludefiles%"=="" echo - File(type)s to exclude: %excludefiles%
+if NOT [%excludefolders%]==[] echo - Folders to exclude: %excludefolders%
+if NOT [%excludefiles%]==[] echo - File(type)s to exclude: %excludefiles%
+if NOT [%filestocopy%]==[] echo - File(s) to copy: %filestocopy%
 
 rem Output read options to log
 echo Robocopy is busy mirroring (source -^> destination)... >> "%logfile%"
 echo * %sourcefolder% -^> %destinationfolder% >> "%logfile%"
-if NOT "%excludefolders%"=="" echo - Folders to exclude: %excludefolders% >> "%logfile%"
-if NOT "%excludefiles%"=="" echo - File(type)s to exclude: %excludefiles% >> "%logfile%"
+if NOT [%excludefolders%]==[] echo - Folders to exclude: %excludefolders% >> "%logfile%"
+if NOT [%excludefiles%]==[] echo - File(type)s to exclude: %excludefiles% >> "%logfile%"
+if NOT [%filestocopy%]==[] echo - File(s) to copy: %filestocopy% >> "%logfile%"
+
+rem Build parameters
+rem /XD are folders to exclude
+if NOT [%excludefolders%]==[] set excludefolders=/XD %excludefolders%
+rem /XF are file(type)s to exclude
+if NOT [%excludefiles%]==[] set excludefiles=/XF %excludefiles%
 
 rem Extra parameters explained
 rem /S /PURGE
@@ -70,8 +83,8 @@ rem Append logfile (if multiple folders are mirrored every log is contained)
 rem /R:0 /W:0
 rem Retry 0 times with a 0 second pause between each try if copy fails (insufficient disk space)
 rem Default was 1.000.000 retries with 30 seconds pause for EACH file.
-robocopy "%sourcefolder%" "%destinationfolder%" /XD %excludefolders% /XF %excludefiles% /S /PURGE /ZB /NP /LOG+:"%logfile%" /R:0 /W:0
-if %errorlevel%==16 set error=Error: Roboform exit code 16 (wrong "%robocopy_fileset%")? & goto :eof
+robocopy "%sourcefolder%" "%destinationfolder%" %filestocopy% %excludefiles% /S /PURGE /ZB /NP /LOG+:"%logfile%" /R:0 /W:0 %excludefolders%
+if %errorlevel%==16 set error=Error: Roboform exit code 16 (wrong "%robocopy_fileset%" or network access)? & goto :eof
 if %errorlevel%==9 set error=Error: Roboform exit code 9 (not enough diskspace on drive %destinationfolder:~0,1%)? & goto :eof
 echo.
 
