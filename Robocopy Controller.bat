@@ -2,7 +2,7 @@
 cls
 SETLOCAL
 
-set scriptversion=Robocopy Controller 1.2.002
+set scriptversion=Robocopy Controller 1.2.003
 rem Set windowtitle of DOS box
 title %scriptversion%
 
@@ -27,6 +27,25 @@ rem Check whether Robocopy exist
 if NOT exist robocopy.exe set error=Error: Robocopy.exe missing. & goto :end
 
 rem This sections reads the settings from %robocopy_fileset%
+for /F "skip=4 tokens=1,2,3,4,5 delims=;" %%i in ('type "%robocopy_fileset%"') do (set sourcefolder=%%i) & (set destinationfolder=%%j) & (set excludefolders=%%k) & (set excludefiles=%%l) & (set filestocopy=%%m) & call :testfileset
+
+rem If error has been set the fileset is not correct. Then quit, else goto next step
+if NOT "%error%"=="false" goto :end
+pause & goto :readfileset
+
+:testfileset
+rem Check the fileset for existance of all variables
+set testempty="%excludefolders%"
+if %testempty% == "" set error=Error: Fileset contains non-empty tokens (use a space). & goto :eof
+set testempty="%excludefiles%"
+if %testempty% == "" set error=Error: Fileset contains non-empty tokens (use a space). & goto :eof
+set testempty="%filestocopy%"
+if %testempty% == "" set error=Error: Fileset contains non-empty tokens (use a space). & goto :eof
+
+rem Exit the loop :testfileset
+goto :eof
+
+:readfileset
 rem The subroutine :robocopy is called for each line
 for /F "skip=4 tokens=1,2,3,4,5 delims=;" %%i in ('type "%robocopy_fileset%"') do (set sourcefolder=%%i) & (set destinationfolder=%%j) & (set excludefolders=%%k) & (set excludefiles=%%l) & (set filestocopy=%%m) & call :robocopy
 
@@ -51,22 +70,22 @@ rem Output read options to screen
 echo Robocopy is busy mirroring (source -^> destination)...
 if NOT exist "%destinationfolder%" echo PLEASE NOTE: This may take a few minutes on the first run!
 echo * %sourcefolder% -^> %destinationfolder%
-if NOT [%excludefolders%]==[] echo - Folders to exclude: %excludefolders%
-if NOT [%excludefiles%]==[] echo - File(type)s to exclude: %excludefiles%
-if NOT [%filestocopy%]==[] echo - File(s) to copy: %filestocopy%
+if NOT "%excludefolders%" == "" echo - Folders to exclude: %excludefolders%
+if NOT "%excludefiles%" == "" echo - File(type)s to exclude: %excludefiles%
+if NOT "%filestocopy%" == "" echo - File(s) to copy: %filestocopy%
 
 rem Output read options to log
 echo Robocopy is busy mirroring (source -^> destination)... >> "%logfile%"
 echo * %sourcefolder% -^> %destinationfolder% >> "%logfile%"
-if NOT [%excludefolders%]==[] echo - Folders to exclude: %excludefolders% >> "%logfile%"
-if NOT [%excludefiles%]==[] echo - File(type)s to exclude: %excludefiles% >> "%logfile%"
-if NOT [%filestocopy%]==[] echo - File(s) to copy: %filestocopy% >> "%logfile%"
+if NOT "%excludefolders%" == "" echo - Folders to exclude: %excludefolders% >> "%logfile%"
+if NOT "%excludefiles%" == "" echo - File(type)s to exclude: %excludefiles% >> "%logfile%"
+if NOT "%filestocopy%" == "" echo - File(s) to copy: %filestocopy% >> "%logfile%"
 
 rem Build parameters
 rem /XD are folders to exclude
-if NOT [%excludefolders%]==[] set excludefolders=/XD %excludefolders%
+if NOT "%excludefolders%"=="" set excludefolders=/XD %excludefolders%
 rem /XF are file(type)s to exclude
-if NOT [%excludefiles%]==[] set excludefiles=/XF %excludefiles%
+if NOT "%excludefiles%"=="" set excludefiles=/XF %excludefiles%
 
 rem Extra parameters explained
 rem /S /PURGE
