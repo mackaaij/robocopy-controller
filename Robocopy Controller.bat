@@ -2,7 +2,7 @@
 cls
 SETLOCAL
 
-set scriptversion=Robocopy Controller 1.2.003
+set scriptversion=Robocopy Controller 1.2.005
 rem Set windowtitle of DOS box
 title %scriptversion%
 
@@ -24,23 +24,20 @@ rem Create a new logfile
 echo Start %scriptversion% > "%logfile%"
 
 rem Check whether Robocopy exist
-if NOT exist robocopy.exe set error=Error: Robocopy.exe missing. & goto :end
+if NOT exist robocopy.exe set error=Error: Robocopy.exe missing. Correct the working directory. & goto :end
 
 rem This sections reads the settings from %robocopy_fileset%
 for /F "skip=4 tokens=1,2,3,4,5 delims=;" %%i in ('type "%robocopy_fileset%"') do (set sourcefolder=%%i) & (set destinationfolder=%%j) & (set excludefolders=%%k) & (set excludefiles=%%l) & (set filestocopy=%%m) & call :testfileset
 
 rem If error has been set the fileset is not correct. Then quit, else goto next step
 if NOT "%error%"=="false" goto :end
-pause & goto :readfileset
+goto :readfileset
 
 :testfileset
-rem Check the fileset for existance of all variables
-set testempty="%excludefolders%"
-if %testempty% == "" set error=Error: Fileset contains non-empty tokens (use a space). & goto :eof
-set testempty="%excludefiles%"
-if %testempty% == "" set error=Error: Fileset contains non-empty tokens (use a space). & goto :eof
-set testempty="%filestocopy%"
-if %testempty% == "" set error=Error: Fileset contains non-empty tokens (use a space). & goto :eof
+rem Check wether the fileset fills the last variable
+rem (if not then an empty token is supplied in the fileset which cannot be handled)
+set filestocopy > nul
+if %errorlevel%==1 set error=Error: Fileset contains non-empty tokens (use a space). & goto :eof
 
 rem Exit the loop :testfileset
 goto :eof
@@ -53,10 +50,11 @@ rem If this line in the script is reached the complete %robocopy_fileset% is don
 goto :end
 
 :robocopy
-rem Strip the trailing space from the variables if there is one (symbol for empty token)
-if "%excludefolders:~-1%" == " " set excludefolders=%excludefolders:~0,-1%
-if "%excludefiles:~-1%" == " " set excludefiles=%excludefiles:~0,-1%
-if "%filestocopy:~-1%" == " " set filestocopy=%filestocopy:~0,-1%
+rem Remove variables which only consist of a space (symbol for empty token)
+rem %variablename:"=% replaces the quotes in the variable with nothing for processing
+if "%excludefolders:"=%" == " " set excludefolders=
+if "%excludefiles:"=%" == " " set excludefiles=
+if "%filestocopy:"=%" == " " set filestocopy=
 
 rem Strip trailing backslash from source and destination directories if there is one.
 rem Otherwise Robocopy will fail...
@@ -70,16 +68,16 @@ rem Output read options to screen
 echo Robocopy is busy mirroring (source -^> destination)...
 if NOT exist "%destinationfolder%" echo PLEASE NOTE: This may take a few minutes on the first run!
 echo * %sourcefolder% -^> %destinationfolder%
-if NOT "%excludefolders%" == "" echo - Folders to exclude: %excludefolders%
-if NOT "%excludefiles%" == "" echo - File(type)s to exclude: %excludefiles%
-if NOT "%filestocopy%" == "" echo - File(s) to copy: %filestocopy%
+if NOT [%excludefolders%] == [] echo - Folders to exclude: %excludefolders%
+if NOT [%excludefiles%] == [] echo - File(type)s to exclude: %excludefiles%
+if NOT [%filestocopy%] == [] echo - File(s) to copy: %filestocopy%
 
 rem Output read options to log
 echo Robocopy is busy mirroring (source -^> destination)... >> "%logfile%"
 echo * %sourcefolder% -^> %destinationfolder% >> "%logfile%"
-if NOT "%excludefolders%" == "" echo - Folders to exclude: %excludefolders% >> "%logfile%"
-if NOT "%excludefiles%" == "" echo - File(type)s to exclude: %excludefiles% >> "%logfile%"
-if NOT "%filestocopy%" == "" echo - File(s) to copy: %filestocopy% >> "%logfile%"
+if NOT [%excludefolders%] == [] echo - Folders to exclude: %excludefolders% >> "%logfile%"
+if NOT [%excludefiles%] == [] echo - File(type)s to exclude: %excludefiles% >> "%logfile%"
+if NOT [%filestocopy%] == [] echo - File(s) to copy: %filestocopy% >> "%logfile%"
 
 rem Build parameters
 rem /XD are folders to exclude
