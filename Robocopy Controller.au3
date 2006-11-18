@@ -1,6 +1,6 @@
 #Include <File.au3>
 
-$windowtitle="Robocopy Controller 2.0.002"
+$windowtitle="Robocopy Controller 2.0.003"
 $tokensrequired=5
 dim $ErrorTestloop
 dim $ErrorInformationTestloop
@@ -8,6 +8,7 @@ dim $ErrorRobocopy
 dim $ErrorInformationRobocopy
 dim $ConfirmInformation
 $confirm="true"
+$CheckTargetFor="D:\Network Offline\"
 
 If $CmdLine[0]=0 then
 	MsgBox(4096 + 16,$windowtitle,"Usage: Robocopy Controller.exe <fileset> [/noconfirm]")
@@ -106,7 +107,7 @@ Func ProcessFile($filename,$state)
 				$destinationfolder=StringTrimRight ($destinationfolder,1)
 			Wend
 			$ConfirmInformation = $ConfirmInformation & @lf & $sourcefolder & "->" & $destinationfolder
-			If StringLeft($destinationfolder,19)<>"D:\Network Offline\" Then
+			If StringLeft($destinationfolder,StringLen($CheckTargetFor))<>$CheckTargetFor Then
 				$ErrorTestloop="true"
 				$ErrorInformationTestloop = $ErrorInformationTestloop & @lf & "Line " & $linenumber & " destination folder should start with ""D:\Network Offline\"": " & $destinationfolder
 			EndIf
@@ -158,6 +159,8 @@ Func RoboCopy($currentfileset,$totalfilesets,$sourcefolder,$destinationfolder,$e
 		$ErrorInformationRobocopy = $ErrorInformationRobocopy & @lf & "Line " & $currentfileset & ", errorlevel " & $val & " (" & $sourcefolder & "->" & $destinationfolder & ")"
 	EndIf
 	
+	;Set copied files to readonly to stress it's for readonly use
+	;Robocopy could also do this with "/A+:R" but only for newly copied files
 	FileSetAttrib($destinationfolder, "+R", 1)
 	
 	;Update statistics and clear systemtraytip
