@@ -1,6 +1,6 @@
 #Include <File.au3>
 
-$windowtitle="Robocopy Controller 2.0.003"
+$windowtitle="Robocopy Controller 2.0.004"
 $tokensrequired=5
 dim $ErrorTestloop
 dim $ErrorInformationTestloop
@@ -8,7 +8,7 @@ dim $ErrorRobocopy
 dim $ErrorInformationRobocopy
 dim $ConfirmInformation
 $confirm="true"
-$CheckTargetFor="D:\Network Offline\"
+$CheckTargetFor="D:\Network Mirror\"
 
 If $CmdLine[0]=0 then
 	MsgBox(4096 + 16,$windowtitle,"Usage: Robocopy Controller.exe <fileset> [/noconfirm]")
@@ -21,6 +21,9 @@ $filename=$CmdLine[1]
 If $CmdLine[0]=2 Then
 	If $CmdLine[2]="/noconfirm" Then $confirm="false"
 EndIf
+
+;At first another target folder was used.
+If FileExists("D:\Network Offline") Then DirMove("D:\Network Offline","D:\Network Mirror")
 
 ; Check if file opened for reading OK
 $filehandle = FileOpen($filename, 0)
@@ -109,7 +112,7 @@ Func ProcessFile($filename,$state)
 			$ConfirmInformation = $ConfirmInformation & @lf & $sourcefolder & "->" & $destinationfolder
 			If StringLeft($destinationfolder,StringLen($CheckTargetFor))<>$CheckTargetFor Then
 				$ErrorTestloop="true"
-				$ErrorInformationTestloop = $ErrorInformationTestloop & @lf & "Line " & $linenumber & " destination folder should start with ""D:\Network Offline\"": " & $destinationfolder
+				$ErrorInformationTestloop = $ErrorInformationTestloop & @lf & "Line " & $linenumber & " destination folder should start with """ & $CheckTargetFor & """: " & $destinationfolder
 			EndIf
 		EndIf
 		
